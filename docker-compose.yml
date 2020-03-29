@@ -5,10 +5,12 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
-        command: python manage.py runserver 0.0.0.0:8000
+        # We run a pip install to catch cases where requirements were added but a Docker build hasn't run yet
+        command: bash -c "pip install -r requirements.txt && python manage.py runserver 0.0.0.0:8000"
         working_dir: /usr/local/site/
         volumes:
         - ./backend/:/usr/local/site/
+        - ../certificates/private_keys.py:/usr/local/site/carebackend/private_keys.py
         ports:
         - 8000:8000
         env_file:
