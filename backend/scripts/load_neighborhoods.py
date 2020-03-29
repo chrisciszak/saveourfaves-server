@@ -35,6 +35,7 @@ for _, row in df.iterrows():
         if not row['GeoJSON'].startswith('[['):
             row['GeoJSON'] = '[%s]' % row['GeoJSON']
         geo_json = json.loads(row['GeoJSON'])
+        print(geo_json)
         n.bounds = Polygon(geo_json)
         poly = ShapelyPolygon(geo_json)
         centroid = poly.centroid
@@ -47,6 +48,6 @@ for _, row in df.iterrows():
         continue
     n.lat = lat
     n.lng = lng
-    n.area = area
+    n.area = Area.objects.get(key=row["Area"])
     n.rank = row.get('Rank') if not pd.isna(row.get('Rank')) else None
     n.save()
