@@ -8,14 +8,14 @@ from django.contrib.gis.measure import D
 class EmailSubscription(models.Model):
     email = models.EmailField()
     place = models.ForeignKey(to='Place', on_delete=models.CASCADE)
-    sent_to_place_owner = models.DateTimeField(null=True, blank=True)
+    processed = models.BooleanField(default=False)
 
     def __str__(self):
         return "%s to %s" % (self.email, self.place.name)
 
 class SubmittedGiftCardLink(models.Model):
 
-    link = models.URLField()
+    link = models.URLField(max_length=1000)
     place = models.ForeignKey(to='Place', on_delete=models.CASCADE)
     date_submitted = models.DateTimeField(auto_now_add=True)
 
@@ -23,15 +23,26 @@ class SubmittedGiftCardLink(models.Model):
         return "%s to %s" % (self.link, self.place.name)
 
 class SubmittedPlace(models.Model):
-    gift_card_url = models.URLField(null=True, blank=True)
+    gift_card_url = models.URLField(null=True, blank=True, max_length=1000)
+    donation_url = models.URLField(null=True, blank=True, max_length=1000)
     email = models.EmailField(null=True, blank=True)
     place_id = models.TextField()
+    matched_place = models.ForeignKey(to='Place', on_delete=models.CASCADE, null=True, blank=True)
     place_name = models.TextField()
     place_rough_location = models.TextField()
     date_submitted = models.DateTimeField(auto_now_add=True)
+    processed = models.BooleanField(default=False)
 
     def __str__(self):
         return "%s at %s" % (self.place_name, self.place_rough_location)
+
+    def save(self, *args, **kwargs):
+        if self.place_id:
+            try:
+                self.matched_place = Place.objects.get(place_id=self.place_id)
+            except Place.DoesNotExist:
+                pass
+        super(self.__class__, self).save(*args, **kwargs)
 
 class Neighborhood(models.Model):
     name = models.TextField()
@@ -41,16 +52,17 @@ class Neighborhood(models.Model):
     lng = models.FloatField()
     geom = models.PointField(srid=4326, null=True)
     bounds = models.PolygonField(srid=4326, null=True, blank=True)
-    photo_url = models.URLField(blank=True, null=True)
+    photo_url = models.URLField(blank=True, null=True, max_length=1000)
     photo_attribution = models.TextField(blank=True, null=True)
     area = models.ForeignKey(to='Area', on_delete=models.SET_NULL, blank=True, null=True)
     rank = models.IntegerField(null=True, blank=True)
 
     def place_list(self, limit, offset):
-        hardcoded = []
+        hardcoded = [x.place for x in NeighborhoodEntry.objects.filter(neighborhood=self).order_by('rank')]
         if offset == 0:
-            hardcoded = [x.place for x in NeighborhoodEntry.objects.filter(neighborhood=self).order_by('rank')]
-        to_fetch = (limit - len(hardcoded)) + 1
+            to_fetch = (limit - len(hardcoded)) + 1
+        else:
+            to_fetch = limit + 1
         if self.bounds:
             close_by = Place.objects.filter(
                 Q(geom__within=self.bounds)
@@ -58,17 +70,22 @@ class Neighborhood(models.Model):
                 has_card=models.Count('gift_card_url')
             ).exclude(
                 place_id__in=[x.place_id for x in hardcoded]
-            ).order_by('-has_card', '-num_ratings')[offset:offset + (limit - len(hardcoded) + 1)]
+            ).order_by('-has_card', '-num_ratings')[offset:offset + to_fetch]
         else:
             close_by = Place.objects.filter(
-                Q(geom__distance_lt=(self.geom, D(m=2500))) & (Q(gift_card_url__isnull=False) | Q(email_contact__isnull=False))
+                Q(geom__distance_lt=(self.geom, D(m=2500)))
             ).exclude(
                 place_id__in=[x.place_id for x in hardcoded]
             ).annotate(
+                has_card=models.Count('gift_card_url')
+            ).annotate(
                 distance=Distance('geom', self.geom)
-            ).order_by('distance')[offset:offset + (limit - len(hardcoded) + 1)]
+            ).order_by('-has_card', 'distance')[offset:offset + to_fetch]
         more_available = len(close_by) == to_fetch
-        joined = (hardcoded + list(close_by))
+        if offset == 0:
+            joined = (hardcoded + list(close_by))
+        else:
+            joined = list(close_by)
         end_list = -1 if more_available else len(joined)
         return joined[0:end_list], more_available
 
@@ -96,6 +113,16 @@ class Area(models.Model):
     key = models.TextField(primary_key=True)
     display_name = models.TextField()
 
+    @classmethod
+    def update_area_for_all_places(cls):
+        for a in cls.objects.all():
+            for n in Neighborhood.objects.filter(area=a):
+                if n.bounds:
+                    places = Place.objects.filter(geom__within=n.bounds)
+                else:
+                    places = Place.objects.filter(geom__distance_lt=(n.geom, D(m=5000)))
+                places.update(area=a)
+
 # Create your models here.
 class Place(models.Model):
     name = models.TextField()
@@ -107,11 +134,14 @@ class Place(models.Model):
     address = models.TextField()
     area = models.ForeignKey(to='Area', null=True, blank=True, on_delete=models.SET_NULL)
     email_contact = models.EmailField(null=True, blank=True)
-    place_url = models.URLField(null=True, blank=True)
-    image_url = models.URLField(null=True, blank=True)
+    place_url = models.URLField(null=True, blank=True, max_length=1000)
+    image_url = models.URLField(null=True, blank=True, max_length=1000)
     image_attribution = models.TextField(null=True, blank=True)
-    gift_card_url = models.URLField(null=True, blank=True)
-    geom = models.PointField(srid=4326, null=True)
+    gift_card_url = models.URLField(null=True, blank=True, max_length=1000)
+    takeout_url = models.URLField(null=True, blank=True, max_length=1000)
+    donation_url = models.URLField(null=True, blank=True, max_length=1000)
+    geom = models.PointField(srid=4326, null=True, blank=True)
+    place_types = models.TextField(null=True, blank=True)
 
     @classmethod
     def dump_names_for_site(cls, out_fl):
@@ -153,6 +183,8 @@ class Place(models.Model):
             'name': self.name,
             'address': self.get_short_address(),
             'giftCardURL': self.gift_card_url,
+            'takeoutURL': self.takeout_url,
+            'donationURL': self.donation_url,
             'placeURL': self.place_url,
             'emailContact': self.email_contact,
             'imageURL': self.get_image_url(),
@@ -172,6 +204,9 @@ class Place(models.Model):
         return '%s (%s)' % (self.name, self.address)
 
     def save(self, *args, **kwargs):
+        from places.helper import check_link_against_blacklist
+        if self.gift_card_url and not check_link_against_blacklist(self.gift_card_url):
+            raise Exception("Bad Link Saved")
         if (self.lat and self.lng):
             self.geom = Point([float(x) for x in (self.lng, self.lat)], srid=4326)
         super(self.__class__, self).save(*args, **kwargs)

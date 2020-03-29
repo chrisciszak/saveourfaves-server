@@ -119,9 +119,33 @@ USE_L10N = True
 
 USE_TZ = True
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'level': 'ERROR',
+            'handlers': ['console'],
+        },
+    }
+}
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/django-static/'
 STATIC_ROOT = os.path.join(os.path.dirname(__file__), './django-static/')
+
+EMAIL_HOST = "smtp.sendgrid.net"
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+
+try:
+    from .private_keys import GOOGLE_PLACES_API_KEY, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+except ImportError as e:
+    print("Please supply a private_keys.py file with a GOOGLE_PLACES_API_KEY")
