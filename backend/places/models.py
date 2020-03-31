@@ -68,9 +68,13 @@ class Neighborhood(models.Model):
                 Q(geom__within=self.bounds)
             ).annotate(
                 has_card=models.Count('gift_card_url')
+            ).annotate(
+                has_donation=models.Count('donation_url')
+            ).annotate(
+                has_takeout=models.Count('takeout_url')
             ).exclude(
                 place_id__in=[x.place_id for x in hardcoded]
-            ).order_by('-has_card', '-num_ratings')[offset:offset + to_fetch]
+            ).order_by('-has_card', '-has_takeout', '-has_donation', '-num_ratings')[offset:offset + to_fetch]
         else:
             close_by = Place.objects.filter(
                 Q(geom__distance_lt=(self.geom, D(m=2500)))
@@ -79,8 +83,12 @@ class Neighborhood(models.Model):
             ).annotate(
                 has_card=models.Count('gift_card_url')
             ).annotate(
+                has_donation=models.Count('donation_url')
+            ).annotate(
+                has_takeout=models.Count('takeout_url')
+            ).annotate(
                 distance=Distance('geom', self.geom)
-            ).order_by('-has_card', 'distance')[offset:offset + to_fetch]
+            ).order_by('-has_card', '-has_takeout', '-has_donation', 'distance')[offset:offset + to_fetch]
         more_available = len(close_by) == to_fetch
         if offset == 0:
             joined = (hardcoded + list(close_by))
