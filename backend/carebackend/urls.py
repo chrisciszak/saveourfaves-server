@@ -18,6 +18,7 @@ from django.urls import path
 from places.views import (
     neighborhood_detail,
     place_detail,
+    place_collage_picture,
     submit_email_for_place,
     submit_gift_card_link,
     submit_new_place
@@ -26,6 +27,7 @@ from places.views import (
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/places/detail', place_detail),
+    path('api/places/collage_picture', place_collage_picture),
     path('api/places/by_neighborhood', neighborhood_detail),
     path('api/places/submit_email', submit_email_for_place),
     path('api/places/submit_gift_card_link', submit_gift_card_link),

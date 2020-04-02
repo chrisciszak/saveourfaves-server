@@ -145,6 +145,10 @@ EMAIL_HOST = "smtp.sendgrid.net"
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 
+MEDIA_ROOT =  os.path.join(BASE_DIR, 'media') 
+PLACES_MEDIA_ROOT = MEDIA_ROOT + '/places/'
+MEDIA_URL = '/media/'
+
 try:
     from .private_keys import GOOGLE_PLACES_API_KEY, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
 except ImportError as e:

@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db.models import Q
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_protect, csrf_exempt
 
 
@@ -56,6 +56,27 @@ def place_detail(request):
             ).order_by('distance')[0:9]
 
     return JsonResponse({'place': place.to_json(), 'suggestedPlaces': [x.to_json() for x in nearby]})
+
+@csrf_protect
+def place_collage_picture(request):
+    place_id = request.GET.get('place_id')
+    if not place_id:
+        return JsonResponse({'error': 'missing place ID'})
+    try:
+        place = Place.objects.get(place_id=place_id)
+    except Place.DoesNotExist:
+        return JsonResponse({'error': 'can\'t find place with that ID'})
+
+    filename = place.get_collage_picture()
+
+    if not filename:
+        return JsonResponse({"error": "problem collecting the collage picture"})
+
+    img = open(filename, 'rb')
+
+    response = FileResponse(img)
+
+    return response
 
 @csrf_exempt
 def submit_email_for_place(request):

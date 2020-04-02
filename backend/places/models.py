@@ -183,6 +183,11 @@ class Place(models.Model):
     def get_image_url(self):
         return self.image_url or "http://TODO/placeholder"
 
+    def get_collage_picture(self):
+        from places.helper import get_place_collage_picture
+        filename = get_place_collage_picture(self.place_id)
+        return filename
+
     def get_short_address(self):
         return self.address.split(', CA')[0]
 

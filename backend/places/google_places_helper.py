@@ -20,6 +20,20 @@ def fetch_photo_redirect(photo_ref):
     redirect = photo_req.headers.get("Location")
     return redirect or None
 
+def fetch_photos_for_place_id(place_id, count):
+    photos = []
+    r, photo_url, photo_attrib = fetch_details_for_place_id(place_id)
+    if r.get('photos'):
+        # get all owner photos first
+        r['photos'] = sorted(r['photos'], key=lambda photo: sort_by_owner(photo, r['name']))
+        for photo in r['photos'][:count]:
+            photos.append(fetch_photo_redirect(photo['photo_reference']))
+    return photos
+
+def sort_by_owner(photo, owner):
+    if str(photo["html_attributions"][0]).find(owner) > -1:
+        return -1
+    return 1
 
 def fetch_details_for_place_id(place_id):
     full_url = PLACES_DETAILS_URL.format(
